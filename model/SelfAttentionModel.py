@@ -1,6 +1,5 @@
 import torch
 import torch.nn.functional as F
-from torch.autograd import Variable
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 
@@ -11,14 +10,14 @@ class StructuredSelfAttention(torch.nn.Module):
     """
 
     def __init__(
-        self,
-        gru_hid_dim=120,
-        d_a=100,
-        r=10,
-        embeddings=None,
-        n_classes=50,
-        margin=0.2,
-        cuda=None,
+            self,
+            gru_hid_dim=120,
+            d_a=100,
+            r=10,
+            embeddings=None,
+            n_classes=50,
+            margin=0.2,
+            cuda=None,
     ):
         """
         Initializes parameters suggested in paper
@@ -57,7 +56,7 @@ class StructuredSelfAttention(torch.nn.Module):
     def _load_embeddings(self, embeddings):
         """Load the embeddings based on flag"""
         word_embeddings = torch.nn.Embedding(embeddings.shape[0], embeddings.shape[1])
-#         word_embeddings.weight = torch.nn.Parameter(embeddings)
+        #         word_embeddings.weight = torch.nn.Parameter(embeddings)
         emb_dim = embeddings.shape[1]
 
         return word_embeddings, emb_dim
@@ -96,8 +95,8 @@ class StructuredSelfAttention(torch.nn.Module):
             x = self.linear_second(x)
             x = self.softmax(x, 1)
             attention = x.transpose(1, 2)
-            sentence_embeddings =  attention @ x_padded
-            avg_sentence_embeddings = torch.sum(sentence_embeddings, 1)/self.r
+            sentence_embeddings = attention @ x_padded
+            avg_sentence_embeddings = torch.sum(sentence_embeddings, 1) / self.r
             return F.log_softmax(self.linear_final(avg_sentence_embeddings), dim=0), attention
 
         if x3 is not None:
@@ -108,7 +107,7 @@ class StructuredSelfAttention(torch.nn.Module):
                 forward_detail(x2),
                 forward_detail(x3),
             )
-           
+
             return anchors, positives, negatives
         else:
             # Predict purpose

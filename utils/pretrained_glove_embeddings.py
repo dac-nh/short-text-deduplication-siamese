@@ -1,16 +1,19 @@
+import os
+import pickle
+
 import numpy as np
 import torch
 from tqdm import tqdm_notebook as tqdm
-import os
-import pickle
- 
-main_path =  "/data/dac/dedupe-project/"
+
+main_path = "/data/dac/dedupe-project/"
+
+
 def load_glove_embeddings(
-    word2idx,
-    embedding_dim=50,
-    path="embedding/glove.840B.300d.txt",
-    dump_path="embedding/embedded_data.pkl",
-    retrain=False,
+        word2idx,
+        embedding_dim=50,
+        path="embedding/glove.840B.300d.txt",
+        dump_path="embedding/embedded_data.pkl",
+        retrain=False,
 ):
     """
     Loading the glove embeddings for exist words only

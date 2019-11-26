@@ -1,18 +1,15 @@
 import itertools
-import os
+from multiprocessing.pool import ThreadPool
+
 import numpy as np
 import pandas as pd
-import torch
 import spacy
-
+import torch
+from sklearn.utils import shuffle
 # from keras.preprocessing.sequence import pad_sequences
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import TensorDataset, DataLoader
-from sklearn.utils import shuffle
 from tqdm import tqdm_notebook as tqdm
-from multiprocessing.pool import ThreadPool
-
-
 
 # main_path = '/'  # Use at local
 nlp = spacy.load("en_core_web_lg")
@@ -20,7 +17,7 @@ nlp.max_length = 4500000  # Increase max length
 
 
 def load_data_set(
-    file_path="generated_labeled_data.csv", retrain=False
+        file_path="generated_labeled_data.csv", retrain=False
 ):
     """
     Loads the dataset with self-attraction embedding
@@ -32,11 +29,11 @@ def load_data_set(
     df = pd.read_csv(file_path)
     df["content"] = (
         df["address"]
-        .str.lower()
-        .str.replace("\n", " ")
-        .str.replace(r"[ ]+", " ", regex=True)
-        .str.replace("null", "")
-        .str.replace("nan", "")
+            .str.lower()
+            .str.replace("\n", " ")
+            .str.replace(r"[ ]+", " ", regex=True)
+            .str.replace("null", "")
+            .str.replace("nan", "")
     )
     return df
 
@@ -96,10 +93,10 @@ def truncate_non_string(X, X_len):
 
 
 def load_padded_data(
-    df,
-    word_to_index,
-    char_level=True,
-    retrain=False,
+        df,
+        word_to_index,
+        char_level=True,
+        retrain=False,
 ):
     """
     Padding data into a fixed length
@@ -122,8 +119,8 @@ def load_padded_data(
                 word_to_index.get(word.text)
                 for word in words_tokenized
                 if (
-                    word_to_index.get(word.text) is not None
-                    and word.pos_ not in ["PUNCT", "SYM"]
+                        word_to_index.get(word.text) is not None
+                        and word.pos_ not in ["PUNCT", "SYM"]
                 )
             ]
         x_train.append(torch.LongTensor(words_vector))
@@ -199,21 +196,20 @@ def create_data_loader(loader, batch_size=5000):
 
 
 def load_triplet(
-    x_padded,
-    x_lengths,
-    df_triplet_orders,
-    batch_size=520,
-    retrain=False,
+        x_padded,
+        x_lengths,
+        df_triplet_orders,
+        batch_size=520,
+        retrain=False,
 ):
-
     df_triplet_orders = shuffle(df_triplet_orders)
     anc_dict = {"data": [], "length": []}
     pos_dict = {"data": [], "length": []}
     neg_dict = {"data": [], "length": []}
     for row in tqdm(
-        df_triplet_orders.iloc[:, :].itertuples(),
-        total=df_triplet_orders.shape[0],
-        desc="Load triplets",
+            df_triplet_orders.iloc[:, :].itertuples(),
+            total=df_triplet_orders.shape[0],
+            desc="Load triplets",
     ):
         anc_loc, pos_loc, neg_loc = row[2], row[3], row[4]
         anc_dict["data"].append(x_padded[anc_loc])
