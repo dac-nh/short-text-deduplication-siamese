@@ -12,8 +12,8 @@ from torch.utils.data import TensorDataset, DataLoader
 from tqdm import tqdm_notebook as tqdm
 
 # main_path = '/'  # Use at local
-nlp = spacy.load("en_core_web_lg")
-nlp.max_length = 4500000  # Increase max length
+# nlp = spacy.load("en_core_web_lg")
+# nlp.max_length = 4500000  # Increase max length
 
 
 def load_data_set(
@@ -58,7 +58,7 @@ def load_word_to_index(df, retrain=False):
     return word_to_index
 
 
-def load_char_to_index(df, retrain=False):
+def load_char_to_index(df):
     """
     Create character to index dictionary
     :param retrain: bool: if file is exist and want to retrain model

@@ -44,8 +44,8 @@ class TripletSiameseModel(torch.nn.Module):
                 x_embed, x_len, batch_first=True, enforce_sorted=False
             )
             x_packed, self.hidden_state = self.gru(x_packed)
-            output, output_lengths = pad_packed_sequence(x_packed, batch_first=True)
-            return self.linear_final(output)
+            self.output, output_lengths = pad_packed_sequence(x_packed, batch_first=True)
+            return self.linear_final(self.output)
 
         if x3 is not None:
             # Training purpose - Triplet input
