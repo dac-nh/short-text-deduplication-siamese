@@ -14,6 +14,7 @@ class StructuredSelfAttention(torch.nn.Module):
             gru_hid_dim=120,
             d_a=100,
             r=10,
+            max_len=5,
             embeddings=None,
             n_classes=50,
             margin=0.2,
@@ -23,12 +24,12 @@ class StructuredSelfAttention(torch.nn.Module):
         Initializes parameters suggested in paper
 
         Args:
-            lstm_hid_dim: {int} hidden dimension for lstm
+            gru_hid_dim: {int} hidden dimension for lstm
             d_a         : {int} hidden dimension for the dense layer
             r           : {int} attention-hops or attention heads
             embeddings  : {torch.FloatTensor} loaded pretrained embeddings
-            type        : [0,1] 0-->binary_classification 1-->multiclass classification
             n_classes   : {int} number of classes
+            max_len     : {int} number of lstm timesteps
 
         Returns:
             self
@@ -52,6 +53,7 @@ class StructuredSelfAttention(torch.nn.Module):
         self.tanh = torch.nn.Tanh()
         self.device = cuda
         self.margin = margin
+        self.max_len = max_len
 
     def _load_embeddings(self, embeddings):
         """Load the embeddings based on flag"""
@@ -86,12 +88,8 @@ class StructuredSelfAttention(torch.nn.Module):
         def forward_detail(x):
             x, x_len = x
             embeddings = self.embeddings(x)
-            x_packed = pack_padded_sequence(
-                embeddings, x_len, batch_first=True, enforce_sorted=False
-            )
-            x_packed, self.hidden_state = self.gru(x_packed)
-            x_padded, output_lengths = pad_packed_sequence(x_packed, batch_first=True)
-            x = torch.tanh(self.linear_first(x_padded))
+            outputs, self.hidden_state = self.gru(embeddings.view(x.size(0), self.max_len, -1))
+            x = torch.tanh(self.linear_first(outputs))
             x = self.linear_second(x)
             x = self.softmax(x, 1)
             attention = x.transpose(1, 2)
