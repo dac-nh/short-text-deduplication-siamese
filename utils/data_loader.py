@@ -17,7 +17,7 @@ from tqdm import tqdm_notebook as tqdm
 
 
 def load_data_set(
-        file_path="generated_labeled_data.csv", retrain=False
+        file_path="generated_labeled_data.csv"
 ):
     """
     Loads the dataset with self-attraction embedding
@@ -38,7 +38,7 @@ def load_data_set(
     return df
 
 
-def load_word_to_index(df, retrain=False):
+def load_word_to_index(df):
     """
     Create word to index dictionary
     :param retrain: bool: if file is exist and want to retrain model
@@ -95,8 +95,7 @@ def truncate_non_string(X, X_len):
 def load_padded_data(
         df,
         word_to_index,
-        char_level=True,
-        retrain=False,
+        char_level=True
 ):
     """
     Padding data into a fixed length
@@ -133,7 +132,7 @@ def load_padded_data(
     return x_train_pad, x_train_len
 
 
-def load_triplet_orders(df, retrain=False):
+def load_triplet_orders(df):
     """
     Create triplet samples
     :param df:  dataframe
@@ -199,8 +198,7 @@ def load_triplet(
         x_padded,
         x_lengths,
         df_triplet_orders,
-        batch_size=520,
-        retrain=False,
+        batch_size=520
 ):
     df_triplet_orders = shuffle(df_triplet_orders)
     anc_dict = {"data": [], "length": []}
