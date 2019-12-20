@@ -31,9 +31,9 @@ class TripletSiameseModel(torch.nn.Module):
             layers,
             batch_first=True,
             bidirectional=bidirectional,
-            dropout=0.1,
+            dropout=0.3,
         )
-        self.linear_final = torch.nn.Linear(2 * hid_dim, self.n_classes)
+        self.linear_final = torch.nn.Linear(2*hid_dim, self.n_classes)
 
     def _load_embeddings(self, embedding_dim):
         """Load the embeddings based on flag"""
@@ -159,9 +159,13 @@ class sim_trip_classification(torch.nn.Module):
             dropout=0.2,
         )
         self.gru_combined = torch.nn.GRU(
-            2*hid_dim, com_dim, batch_first=True, bidirectional=bidirectional, dropout=0.2
+            2 * hid_dim,
+            com_dim,
+            batch_first=True,
+            bidirectional=bidirectional,
+            dropout=0.2,
         )
-        self.linear_class = torch.nn.Linear(com_dim*2, 1)
+        self.linear_class = torch.nn.Linear(com_dim * 2, 1)
 
     def _load_embeddings(self, embeddings):
         """Load the embeddings based on flag"""
