@@ -7,6 +7,7 @@ import pandas as pd
 import os
 import itertools
 import time
+import argparse
 
 from tqdm import tqdm_notebook as tqdm
 from torch import optim
@@ -119,84 +120,124 @@ def prepare_data(file_path, retrain=True):
     return df, X, X_len, embeddings
 
 
-# ---- Load data and convert it to triplet
-df, X, X_len, embeddings = prepare_data(main_path + full_generated_data_path)
-# Create data loader with batch
-batch_size = 10000
-df_triplet_orders = load_triplet_orders(df)
-print("Loading triplet order successfully!")
-anc_loader, pos_loader, neg_loader = load_triplet(
-    np.array(X), X_len, df_triplet_orders, batch_size=batch_size
-)
-print("Load triplet data successfully!")
+def to_cuda(loader, device):
+    return [load.to(device) for load in loader]
 
 
-# ---- Load triplet siamese model and distance
-model, distance, optimizer = load_triplet_siamese_model("/data/dac/dedupe-project/new/model/triplet_siamese_50d_bi_gru_random", embedding_index, 50)
-
-# ---- Train model
-epochs = 7
-best_lost = None
-early_stopping_steps = 5
-loss_list = []
-average_list = []
-model.train()
-
-start_time = time.time()
-for epoch in tqdm(range(epochs), desc="Epoch", total=epochs):
-    avg_loss = 0
-    avg_acc = 0
-    avg_pos_sim = 0
-    avg_neg_sim = 0
-    for batch, [anc_x, pos_x, neg_x] in enumerate(
-        zip(anc_loader, pos_loader, neg_loader)
-    ):
-        # Send data to graphic card - Cuda
-        anc_x, pos_x, neg_x = (
-            to_cuda(anc_x, device),
-            to_cuda(pos_x, device),
-            to_cuda(neg_x, device),
-        )
-        # Load model and compute the distance
-        x, pos, neg = model(anc_x, pos_x, neg_x)
-        loss, pos_sim, neg_sim = distance(x, pos, neg)
-
-        # Append to batch list
-        avg_loss += float(loss)
-        avg_pos_sim += pos_sim.mean()
-        avg_neg_sim += neg_sim.mean()
-
-        # Gradient
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-    # Average loss and distance of all epochs
-    avg_loss /= len(anc_loader)
-    avg_pos_sim /= len(anc_loader)
-    avg_neg_sim /= len(anc_loader)
-
-    loss_list.append(avg_loss)
-    print(
-        "\rEpoch:\t{}\tAverage Loss:\t{}\t\tPos:\t{}\t\tNeg:\t{}\t\t".format(
-            epoch,
-            round(avg_loss, 4),
-            round(float(avg_pos_sim), 4),
-            round(float(avg_neg_sim), 4),
-        ),
-        end="",
+def main(data_path, model_path, batch_size, epochs, early_stopping_steps):
+    # ---- Load data and convert it to triplet
+    df, X, X_len, embeddings = prepare_data(data_path)
+    # Create data loader with batch
+    df_triplet_orders = load_triplet_orders(df)
+    print("Loading triplet order successfully!")
+    anc_loader, pos_loader, neg_loader = load_triplet(
+        np.array(X), X_len, df_triplet_orders, batch_size=batch_size
     )
-    if best_lost is None or best_lost > avg_loss:
-        best_lost = avg_loss
-        forward_index = 0
-        #Save model
-        torch.save(
-            {"model": model.state_dict(), "optimizer": optimizer.state_dict()},
-            triplet_model_path,
+    print("Load triplet data successfully!")
+
+    # ---- Load triplet siamese model and distance
+    model, distance, optimizer = load_triplet_siamese_model(
+        model_path, embedding_index, 50,
+    )
+
+    # ---- Train model
+    best_lost = None
+    loss_list = []
+    average_list = []
+    model.train()
+
+    start_time = time.time()
+    for epoch in tqdm(range(epochs), desc="Epoch", total=epochs):
+        avg_loss = 0
+        avg_pos_sim = 0
+        avg_neg_sim = 0
+        for batch, [anc_x, pos_x, neg_x] in enumerate(
+            zip(anc_loader, pos_loader, neg_loader)
+        ):
+            # Send data to graphic card - Cuda
+            anc_x, pos_x, neg_x = (
+                to_cuda(anc_x, device),
+                to_cuda(pos_x, device),
+                to_cuda(neg_x, device),
+            )
+            # Load model and measure the distance between anchor, positive and negative
+            x, pos, neg = model(anc_x, pos_x, neg_x)
+            loss, pos_sim, neg_sim = distance(x, pos, neg)
+            # Append to batch list
+            avg_loss += float(loss)
+            avg_pos_sim += pos_sim.mean()
+            avg_neg_sim += neg_sim.mean()
+            # Update weights
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        # Average loss and distance of all epochs
+        avg_loss /= len(anc_loader)
+        avg_pos_sim /= len(anc_loader)
+        avg_neg_sim /= len(anc_loader)
+        loss_list.append(avg_loss)
+        print(
+            "\rEpoch:\t{}\tAverage Loss:\t{}\t\tPos:\t{}\t\tNeg:\t{}\t\t".format(
+                epoch,
+                round(avg_loss, 4),
+                round(float(avg_pos_sim), 4),
+                round(float(avg_neg_sim), 4),
+            ),
+            end="",
         )
-    else:
+        # Save model thought each checkpoint
         # Early stopping after reachs {early_stopping_steps} steps
-        forward_index += 1
-        if forward_index == early_stopping_steps or best_lost == 0:
-            break
-print("--- %s seconds ---" % (time.time() - start_time))
+        if best_lost is None or best_lost > avg_loss:
+            best_lost = avg_loss
+            forward_index = 0
+            # Save checkpoint every time we get the better loss
+            torch.save(
+                {"model": model.state_dict(), "optimizer": optimizer.state_dict()},
+                triplet_model_path,
+            )
+        else:
+            forward_index += 1
+            if forward_index == early_stopping_steps or best_lost == 0:
+                break
+    print("--- %s seconds ---" % (time.time() - start_time))
+
+
+# ----- Main Function
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--data_path",
+        type=str,
+        default="data/trained_data.csv",
+        help="Path to folders of pre-processed data.",
+    )
+    parser.add_argument(
+        "--model_path",
+        type=str,
+        default="model/trained_model.h5",
+        help="Where to save the trained model.",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=5000,
+        help="Number of triplet samples per batch.",
+    )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=5,
+        help="Number of epochs is used to train model with new data.",
+    )
+
+    parser.add_argument(
+        "--early_stopping_steps",
+        type=int,
+        default=5,
+        help="Number of epochs is used to train model with new data.",
+    )
+    
+    args, unknown = parser.parse_known_args()
+    print(args)
+#     main(args.data_path, args.model_path, args.batch_size, args.epochs, args.early_stopping_steps)
