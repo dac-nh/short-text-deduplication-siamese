@@ -1,3 +1,14 @@
+import warnings
+
+from sklearn.metrics import f1_score, accuracy_score, recall_score, precision_score
+from sklearn.metrics.pairwise import cosine_similarity
+from torch import optim
+
+from model.model import TripletSiameseModel, TripletDistance
+from utils.data_loader import *
+
+warnings.filterwarnings("ignore")
+
 # Load embedding
 embedding_index = {
     " ": 1,
@@ -62,7 +73,15 @@ embedding_index = {
 }
 
 
-def data_loader(test_df_1, test_df_2, embedding_index):
+def data_loader(test_df_1, test_df_2, embedding_index, batch_size):
+    """
+    Generate dataloader to test the result
+    @param test_df_1:
+    @param test_df_2:
+    @param embedding_index:
+    @param batch_size:
+    @return: two dataloaders and removed indexes
+    """
     # Data Preparation pipeline
     # Create Dataloader based on two dataframe have row 'content' in it
     X1, X1_lens = load_padded_data(pd.DataFrame(test_df_1), embedding_index)
@@ -99,6 +118,13 @@ def data_loader(test_df_1, test_df_2, embedding_index):
 
 
 def create_test(n, test_df_1, test_df_2):
+    """
+    Generate test set as int 64 matrix
+    @param n:
+    @param test_df_1:
+    @param test_df_2:
+    @return:
+    """
     # Generate small test based on ground truth
     test_df_1a = pd.DataFrame()
     test_df_1b = pd.DataFrame()
@@ -117,6 +143,16 @@ def create_test(n, test_df_1, test_df_2):
     test_df_1b.reset_index(inplace=True)
 
     return test_df_1a, test_df_1b
+
+
+def to_cuda(loader, device):
+    """
+    Transfer your dataloader into CPU or GPU
+    @param loader: DataLoader
+    @param device: torch.device
+    @return: dataloader in specific device
+    """
+    return [load.to(device) for load in loader]
 
 
 def validate(model, X1, X2, device):
@@ -155,42 +191,58 @@ def validate(model, X1, X2, device):
 
 
 # ---- MAIN
+batch_size = 5000
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+data_path = ''
+model_path = ''
 
-path = "/data/dac/dedupe-project/test/"
-test_df = pd.read_csv(path + "test_address_3.csv", encoding="ISO-8859-1")
+test_df = pd.read_csv(data_path, encoding="ISO-8859-1")
 test_df.fillna("", inplace=True)
 test_df_1 = test_df.loc[:, ["address"]]
 test_df_1["content"] = (
     test_df_1["address"]
-    .str.lower()
-    .str.replace("\n", " ")
-    .str.replace(r"[ ]+", " ", regex=True)
-    .str.replace("null", "")
-    .str.replace("nan", "")
+        .str.lower()
+        .str.replace("\n", " ")
+        .str.replace(r"[ ]+", " ", regex=True)
+        .str.replace("null", "")
+        .str.replace("nan", "")
 )
 test_df_2 = test_df.loc[:, ["duplicated_address"]]
 test_df_2["content"] = (
     test_df_2["duplicated_address"]
-    .str.lower()
-    .str.replace("\n", " ")
-    .str.replace(r"[ ]+", " ", regex=True)
-    .str.replace("null", "")
-    .str.replace("nan", "")
+        .str.lower()
+        .str.replace("\n", " ")
+        .str.replace(r"[ ]+", " ", regex=True)
+        .str.replace("null", "")
+        .str.replace("nan", "")
 )
 
 test_df_1a, test_df_1b = create_test(1176, test_df_1, test_df_2)
-test_X1, test_X2, test_drop = data_loader(test_df_1a, test_df_1b)
+test_X1, test_X2, test_drop = data_loader(test_df_1a, test_df_1b, embedding_index, batch_size)
 
 # ---- Load model, distance and optimizer
-model, distance, optimizer = load_triplet_siamese_model("/data/dac/dedupe-project/new/model/triplet_siamese_50d_bi_gru_random", embedding_index, 50)
+# Load model & optimizer
+lr = 0.01
+margin = 0.4
+model = TripletSiameseModel(
+    embedding_dim=[len(embedding_index), 50],
+    layers=1,
+    hid_dim=50,
+    n_classes=30,
+    bidirectional=True
+).to(device)
+distance = TripletDistance(margin=margin).to(device)
+optimizer = optim.Adam(model.parameters(), lr=lr)
+# Load pre-trained weights
+checkpoint = torch.load(model_path, map_location=device)
+model.load_state_dict(checkpoint["model"])
+optimizer.load_state_dict(checkpoint["optimizer"])
 model.eval()
 
 # Test
 y_true, y_pred, _, _, _ = validate(model, test_X1, test_X2, device)
 print(
-    "\rBatch:\t{}\tLoss:\t{}\tAccuracy:\t{}\tF1-score:\t{}\t".format(
-        batch,
-        round(float(loss), 4),
+    "\tAccuracy:\t{}\tF1-score:\t{}\t".format(
         round(accuracy_score(y_true, y_pred), 4),
         round(f1_score(y_true, y_pred), 4),
     ),
