@@ -268,4 +268,4 @@ if __name__ == "__main__":
     )
 
     args, unknown = parser.parse_known_args()
-#     main(args.data_path, args.model_path, args.batch_size, args.epochs, args.early_stopping_steps)
+    main(args.data_path, args.model_path, args.batch_size, args.epochs, args.early_stopping_steps)

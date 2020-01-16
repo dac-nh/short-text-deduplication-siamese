@@ -222,8 +222,6 @@ test_X1, test_X2, test_drop = data_loader(test_df_1a, test_df_1b, embedding_inde
 
 # ---- Load model, distance and optimizer
 # Load model & optimizer
-lr = 0.01
-margin = 0.4
 model = TripletSiameseModel(
     embedding_dim=[len(embedding_index), 50],
     layers=1,
@@ -231,12 +229,10 @@ model = TripletSiameseModel(
     n_classes=30,
     bidirectional=True
 ).to(device)
-distance = TripletDistance(margin=margin).to(device)
-optimizer = optim.Adam(model.parameters(), lr=lr)
+distance = TripletDistance(margin=0.4).to(device)
 # Load pre-trained weights
 checkpoint = torch.load(model_path, map_location=device)
 model.load_state_dict(checkpoint["model"])
-optimizer.load_state_dict(checkpoint["optimizer"])
 model.eval()
 
 # Test
